@@ -3,36 +3,33 @@
  */
 
 #include <random>
-#include <iostream>
 #include <sstream>
 
 #include "particle_filter.h"
 
-random_device random_device_;
-default_random_engine random_engine_(random_device_());
+random_device device_;
+default_random_engine engine_(device_());
+normal_distribution<float> x_dist_;
+normal_distribution<float> y_dist_;
+normal_distribution<float> theta_dist_;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-  cout << "x=" << x << ", y=" << y << ", theta=" << theta;
-  for (int i = 0; i < 3; i++) {
-    cout << " std[" << i << "]=" << std[i];
-  }
-  cout << endl;
+  printf("x=%f, y=%f, theta=%f\n", x, y, theta);
 
   num_particles = 100;
 
-  // Random noise generator bindings for x, y, and theta based on std[] values
-  auto x_dist = bind(normal_distribution<float>{0.0f, (float) std[0]}, random_engine_);
-  auto y_dist = bind(normal_distribution<float>{0.0f, (float) std[1]}, random_engine_);
-  auto theta_dist = bind(normal_distribution<float>{0.0f, (float) std[2]}, random_engine_);
+  // Initialize GPS measurement uncertainty distribution based on std[] values
+  x_dist_ = normal_distribution<float>(0.0f, (float) std[0]);
+  y_dist_ = normal_distribution<float>(0.0f, (float) std[1]);
+  theta_dist_ = normal_distribution<float>(0.0f, (float) std[2]);
 
   for (int i = 0; i < num_particles; i++) {
     Particle particle;
     particle.id = i;
-    particle.x = x + x_dist();
-    particle.y = y + y_dist();
-    particle.theta = theta + theta_dist();
+    particle.x = x + x_dist_(engine_);
+    particle.y = y + y_dist_(engine_);
+    particle.theta = theta + theta_dist_(engine_);
     particle.weight = 1.0f;
-    cout << "x=" << particle.x << ", y=" << particle.y << ", theta=" << particle.theta << endl;
     weights.push_back(1.0f);
     particles.push_back(particle);
   }
@@ -40,11 +37,20 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
-  // TODO: Add measurements to each particle and add random Gaussian noise.
-  // NOTE: When adding noise you may find normal_distribution and default_random_engine useful.
-  //  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
-  //  http://www.cplusplus.com/reference/random/default_random_engine/
+  printf("velocity=%f, yaw_rate=%f\n", velocity, yaw_rate);
+  for (int i = 0; i < num_particles; i++) {
 
+    double theta = particles[i].theta;
+
+    if (fabs(yaw_rate) > 0.001) {
+      particles[i].x += velocity / yaw_rate * (sin(theta + yaw_rate * delta_t) - sin(theta)) + x_dist_(engine_);
+      particles[i].y += -velocity / yaw_rate * (cos(theta + yaw_rate * delta_t) - cos(theta)) + y_dist_(engine_);
+    } else {
+      particles[i].x += velocity * cos(theta) * delta_t + x_dist_(engine_);
+      particles[i].y += velocity * sin(theta) * delta_t + y_dist_(engine_);
+    }
+    particles[i].theta += yaw_rate * delta_t + theta_dist_(engine_);
+  }
 }
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<LandmarkObs> &observations) {
@@ -60,8 +66,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
   //   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
   //   The following is a good resource for the theory:
   //   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-  //   and the following is a good resource for the actual equation to implement (look at equation
-  //   3.33
+  //   and the following is a good resource for the actual equation to implement (look at equation 3.33
   //   http://planning.cs.uiuc.edu/node99.html
 }
 
