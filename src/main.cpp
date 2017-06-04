@@ -35,7 +35,9 @@ int main() {
 
   // Read map data
   Map map;
-  if (!read_map_data("../data/map_data.txt", map)) {
+  if (read_map_data("../data/map_data.txt", map)) {
+    cout << "Read " << map.landmark_list.size() << " landmarks" << endl;
+  } else {
     cout << "Error: Could not open map file" << endl;
     return -1;
   }
@@ -43,7 +45,7 @@ int main() {
   // Create particle filter
   ParticleFilter pf;
 
-  h.onMessage([&pf, &map, &delta_t, &sensor_range, &sigma_pos, &sigma_landmark](uWS::WebSocket <uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&pf, &map, &delta_t, &sensor_range, &sigma_pos, &sigma_landmark](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -80,16 +82,12 @@ int main() {
           vector<float> x_sense;
           istringstream iss_x(sense_observations_x);
 
-          copy(istream_iterator<float>(iss_x),
-               istream_iterator<float>(),
-               back_inserter(x_sense));
+          copy(istream_iterator<float>(iss_x), istream_iterator<float>(), back_inserter(x_sense));
 
           vector<float> y_sense;
           istringstream iss_y(sense_observations_y);
 
-          copy(istream_iterator<float>(iss_y),
-               istream_iterator<float>(),
-               back_inserter(y_sense));
+          copy(istream_iterator<float>(iss_y), istream_iterator<float>(), back_inserter(y_sense));
 
           for (int i = 0; i < x_sense.size(); i++) {
             LandmarkObs obs;
@@ -152,11 +150,11 @@ int main() {
     }
   });
 
-  h.onConnection([&h](uWS::WebSocket <uWS::SERVER> ws, uWS::HttpRequest req) {
+  h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
     cout << "Connected!!!" << endl;
   });
 
-  h.onDisconnection([&h](uWS::WebSocket <uWS::SERVER> ws, int code, char *message, size_t length) {
+  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
     ws.close();
     cout << "Disconnected" << endl;
   });

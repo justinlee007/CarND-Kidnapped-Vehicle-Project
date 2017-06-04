@@ -81,14 +81,13 @@ class ParticleFilter {
   void updateWeights(double sensor_range, double std_landmark[], vector<LandmarkObs> observations, Map map_landmarks);
 
   /**
-   * resample Resamples from the updated set of particles to form
-   *   the new set of particles.
+   * resample Resamples from the updated set of particles to form the new set of particles.
    */
   void resample();
 
   /**
    * Set a particles list of associations, along with the associations calculated world x,y coordinates
-   * This can be a very useful debugging tool to make sure transformations are correct and assocations correctly connected
+   * This can be a very useful debugging tool to make sure transformations are correct and associations correctly connected
    * @param particle the particle to assign each listed association, and association's (x,y) world coordinates mapping to
    * @param associations The landmark id that goes along with each listed association
    * @param sense_x the associations x mapping already converted to world coordinates

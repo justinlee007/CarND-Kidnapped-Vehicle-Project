@@ -3,23 +3,40 @@
  */
 
 #include <random>
-#include <algorithm>
-#include <iostream>
-#include <numeric>
-#include <math.h>
 #include <iostream>
 #include <sstream>
-#include <string>
-#include <iterator>
 
 #include "particle_filter.h"
 
-void ParticleFilter::init(double x, double y, double theta, double std[]) {
-  // TODO: Set the number of particles. Initialize all particles to first position (based on estimates of
-  //   x, y, theta and their uncertainties from GPS) and all weights to 1.
-  // Add random Gaussian noise to each particle.
-  // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
+random_device random_device_;
+default_random_engine random_engine_(random_device_());
 
+void ParticleFilter::init(double x, double y, double theta, double std[]) {
+  cout << "x=" << x << ", y=" << y << ", theta=" << theta;
+  for (int i = 0; i < 3; i++) {
+    cout << " std[" << i << "]=" << std[i];
+  }
+  cout << endl;
+
+  num_particles = 100;
+
+  // Random noise generator bindings for x, y, and theta based on std[] values
+  auto x_dist = bind(normal_distribution<float>{0.0f, (float) std[0]}, random_engine_);
+  auto y_dist = bind(normal_distribution<float>{0.0f, (float) std[1]}, random_engine_);
+  auto theta_dist = bind(normal_distribution<float>{0.0f, (float) std[2]}, random_engine_);
+
+  for (int i = 0; i < num_particles; i++) {
+    Particle particle;
+    particle.id = i;
+    particle.x = x + x_dist();
+    particle.y = y + y_dist();
+    particle.theta = theta + theta_dist();
+    particle.weight = 1.0f;
+    cout << "x=" << particle.x << ", y=" << particle.y << ", theta=" << particle.theta << endl;
+    weights.push_back(1.0f);
+    particles.push_back(particle);
+  }
+  is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
@@ -31,16 +48,13 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 }
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<LandmarkObs> &observations) {
-  // TODO: Find the predicted measurement that is closest to each observed measurement and assign the
-  //   observed measurement to this particular landmark.
-  // NOTE: this method will NOT be called by the grading code. But you will probably find it useful to
-  //   implement this method and use it as a helper during the updateWeights phase.
+  // TODO: Find the predicted measurement that is closest to each observed measurement and assign the observed measurement to this particular landmark.
+  // NOTE: this method will NOT be called by the grading code. But you will probably find it useful to implement this method and use it as a helper during the updateWeights phase.
 
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], vector<LandmarkObs> observations, Map map_landmarks) {
-  // TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read
-  //   more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
+  // TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
   // NOTE: The observations are given in the VEHICLE'S coordinate system. Your particles are located
   //   according to the MAP'S coordinate system. You will need to transform between the two systems.
   //   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
