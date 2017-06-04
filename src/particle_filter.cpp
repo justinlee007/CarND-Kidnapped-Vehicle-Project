@@ -3,20 +3,34 @@
  */
 
 #include <random>
+#include <algorithm>
+#include <iostream>
+#include <numeric>
+#include <math.h>
+#include <iostream>
 #include <sstream>
+#include <string>
+#include <iterator>
 
 #include "particle_filter.h"
 
-random_device device_;
-default_random_engine engine_(device_());
-normal_distribution<float> x_dist_;
-normal_distribution<float> y_dist_;
-normal_distribution<float> theta_dist_;
+static const int NUM_PARTICLES = 100;
+static const double DEFAULT_WEIGHT = 1.0f;
+
+// GPS measurement uncertainty [x [m], y [m], theta [rad]]
+static normal_distribution<float> x_dist_;
+static normal_distribution<float> y_dist_;
+static normal_distribution<float> theta_dist_;
+
+// Random number generator
+static default_random_engine engine_(random_device{}());
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
   printf("x=%f, y=%f, theta=%f\n", x, y, theta);
 
-  num_particles = 100;
+  num_particles = NUM_PARTICLES;
+  particles.resize(NUM_PARTICLES);
+  weights.resize(NUM_PARTICLES);
 
   // Initialize GPS measurement uncertainty distribution based on std[] values
   x_dist_ = normal_distribution<float>(0.0f, (float) std[0]);
@@ -29,9 +43,9 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     particle.x = x + x_dist_(engine_);
     particle.y = y + y_dist_(engine_);
     particle.theta = theta + theta_dist_(engine_);
-    particle.weight = 1.0f;
-    weights.push_back(1.0f);
+    particle.weight = DEFAULT_WEIGHT;
     particles.push_back(particle);
+    weights.push_back(DEFAULT_WEIGHT);
   }
   is_initialized = true;
 }
@@ -71,10 +85,15 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
 }
 
 void ParticleFilter::resample() {
-  // TODO: Resample particles with replacement with probability proportional to their weight.
-  // NOTE: You may find discrete_distribution helpful here.
-  //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
+  // Initialize weight distribution for resampling
+  discrete_distribution<int> weight_dist(weights.begin(), weights.end());
+  vector<Particle> resampled_particles;
 
+  for (int i = 0; i < num_particles; i++) {
+    Particle particle = particles[weight_dist(engine_)];
+    resampled_particles.push_back(particle);
+  }
+  particles = resampled_particles;
 }
 
 Particle ParticleFilter::SetAssociations(Particle particle, vector<int> associations, vector<double> sense_x, vector<double> sense_y) {
