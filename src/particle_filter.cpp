@@ -29,8 +29,6 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   printf("x=%f, y=%f, theta=%f\n", x, y, theta);
 
   num_particles = NUM_PARTICLES;
-  particles.resize(NUM_PARTICLES);
-  weights.resize(NUM_PARTICLES);
 
   // Initialize GPS measurement uncertainty distribution based on std[] values
   x_dist_ = normal_distribution<float>(0.0f, (float) std[0]);
@@ -161,7 +159,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
 void ParticleFilter::resample() {
   // Initialize weight distribution for resampling
   discrete_distribution<int> weight_dist(weights.begin(), weights.end());
-  vector<Particle> resampled_particles(weights.size());
+  vector<Particle> resampled_particles;
 
   for (int i = 0; i < num_particles; i++) {
     Particle particle = particles[weight_dist(engine_)];
