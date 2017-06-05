@@ -9,6 +9,7 @@
 
 static const int NUM_PARTICLES = 100;
 static const double DEFAULT_WEIGHT = 1.0f;
+static const double MIN_DISTANCE = 1000000;
 
 // GPS measurement uncertainty [x [m], y [m], theta [rad]]
 static normal_distribution<float> x_dist_;
@@ -17,13 +18,6 @@ static normal_distribution<float> theta_dist_;
 
 // Random number generator
 static default_random_engine engine_(random_device{}());
-
-/*
-* Calculates the bivariate normal pdf of a point given a mean and std and assuming zero correlation
-*/
-double bivariate_normal(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) {
-  return exp(-((x - mu_x) * (x - mu_x) / (2 * sig_x * sig_x) + (y - mu_y) * (y - mu_y) / (2 * sig_y * sig_y))) / (2.0 * 3.14159 * sig_x * sig_y);
-}
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
   printf("x=%f, y=%f, theta=%f\n", x, y, theta);
@@ -65,14 +59,14 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 }
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<LandmarkObs> &observations) {
-  double dist_po;
+  double obs_offset;
   for (int i = 0; i < observations.size(); i++) { // loop over observations
-    double min_dist = 1000000;
+    double min_distance = MIN_DISTANCE;
     int closest_id = -1;
     for (int j = 0; j < predicted.size(); j++) {
-      dist_po = dist(observations[i].x, observations[i].y, predicted[j].x, predicted[j].y);
-      if (dist_po < min_dist) {
-        min_dist = dist_po;
+      obs_offset = dist(observations[i].x, observations[i].y, predicted[j].x, predicted[j].y);
+      if (obs_offset < min_distance) {
+        min_distance = obs_offset;
         closest_id = predicted[j].id;
       }
     }
@@ -80,18 +74,23 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<Landm
   }
 }
 
+/**
+ * Calculates the bivariate normal pdf of a point given a mean and std and assuming zero correlation
+ * @param x
+ * @param y
+ * @param mu_x
+ * @param mu_y
+ * @param sig_x
+ * @param sig_y
+ * @return
+ */
+double bivariate_normal(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) {
+  return exp(-(pow(x - mu_x, 2) / (2.0 * pow(sig_x, 2)) + pow(y - mu_y, 2) / (2.0 * pow(sig_y, 2)))) / (2.0 * M_PI * sig_x * sig_y);
+}
+
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], vector<LandmarkObs> observations, Map map_landmarks) {
-  // TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-  // NOTE: The observations are given in the VEHICLE'S coordinate system. Your particles are located
-  //   according to the MAP'S coordinate system. You will need to transform between the two systems.
-  //   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
-  //   The following is a good resource for the theory:
-  //   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-  //   and the following is a good resource for the actual equation to implement (look at equation 3.33
-  //   http://planning.cs.uiuc.edu/node99.html
 
   weights.clear();
-
   for (int i = 0; i < particles.size(); i++) {
     vector<LandmarkObs> ground_obs;
     vector<LandmarkObs> predicted_obs;
@@ -133,15 +132,15 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
 
     for (int index = 0; index < predicted_obs.size(); index++) {
       int ind_min = -1;
-      double dist_min = 1000000;
+      double min_distance = MIN_DISTANCE;
 
       for (int j = 0; j < ground_obs.size(); j++) {
         //Use measurement closest to predicted in case of multiple measurements assigned to the same observation
         if (predicted_obs[index].id == ground_obs[j].id) {
-          double check_dist = dist(predicted_obs[index].x, predicted_obs[index].y, ground_obs[j].x, ground_obs[j].y);
-          if (check_dist < dist_min) {
+          double obs_offset = dist(predicted_obs[index].x, predicted_obs[index].y, ground_obs[j].x, ground_obs[j].y);
+          if (obs_offset < min_distance) {
             ind_min = j;
-            dist_min = check_dist;
+            min_distance = obs_offset;
           }
         }
       }
