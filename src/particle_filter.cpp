@@ -7,6 +7,8 @@
 
 #include "particle_filter.h"
 
+using namespace std;
+
 static const int NUM_PARTICLES = 1000;
 static const double DEFAULT_WEIGHT = 1.0f;
 static const double DEFAULT_DISTANCE = 10000;
