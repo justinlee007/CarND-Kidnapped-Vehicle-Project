@@ -7,9 +7,9 @@
 
 #include "particle_filter.h"
 
-static const int NUM_PARTICLES = 100;
+static const int NUM_PARTICLES = 1000;
 static const double DEFAULT_WEIGHT = 1.0f;
-static const double MIN_DISTANCE = 1000000;
+static const double DEFAULT_DISTANCE = 10000;
 
 // GPS measurement uncertainty [x [m], y [m], theta [rad]]
 static normal_distribution<float> x_dist_;
@@ -43,8 +43,9 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
+  double theta;
   for (int i = 0; i < num_particles; i++) {
-    double theta = particles[i].theta;
+    theta = particles[i].theta;
 
     // Avoid dividing by zero
     if (fabs(yaw_rate) > 0.001) {
@@ -60,40 +61,54 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, vector<LandmarkObs> &observations) {
   double obs_offset;
-  for (int i = 0; i < observations.size(); i++) { // loop over observations
-    double min_distance = MIN_DISTANCE;
-    int closest_id = -1;
-    for (int j = 0; j < predicted.size(); j++) {
-      obs_offset = dist(observations[i].x, observations[i].y, predicted[j].x, predicted[j].y);
+  double min_distance;
+  int closest_id;
+  for (int obs_idx = 0; obs_idx < observations.size(); obs_idx++) { // loop over observations
+    min_distance = DEFAULT_DISTANCE;
+    closest_id = -1;
+    for (int pred_idx = 0; pred_idx < predicted.size(); pred_idx++) {
+      obs_offset = dist(observations[obs_idx].x, observations[obs_idx].y, predicted[pred_idx].x, predicted[pred_idx].y);
       if (obs_offset < min_distance) {
         min_distance = obs_offset;
-        closest_id = predicted[j].id;
+        closest_id = predicted[pred_idx].id;
       }
     }
-    observations[i].id = closest_id;
+    observations[obs_idx].id = closest_id;
   }
 }
 
 /**
- * Calculates the bivariate normal pdf of a point given a mean and std and assuming zero correlation
- * @param x
- * @param y
- * @param mu_x
- * @param mu_y
- * @param sig_x
- * @param sig_y
- * @return
+ * Calculates the Multivariate-Gaussian probability based on the measurement, it's associated landmark, and the signal noise standard deviation.
+ *
+ * @param x Predicted x
+ * @param y Predicted y
+ * @param mu_x Landmark x
+ * @param mu_y Landmark y
+ * @param sigma_x Standard deviation of uncertainty for x
+ * @param sigma_y Standard deviation of uncertainty for y
+ * @return the Multivariate-Gaussian of two dimensions, x and y
  */
-double bivariate_normal(double x, double y, double mu_x, double mu_y, double sig_x, double sig_y) {
-  return exp(-(pow(x - mu_x, 2) / (2.0 * pow(sig_x, 2)) + pow(y - mu_y, 2) / (2.0 * pow(sig_y, 2)))) / (2.0 * M_PI * sig_x * sig_y);
+double calculate_gaussian(double x, double y, double mu_x, double mu_y, double sigma_x, double sigma_y) {
+  return exp(-(pow(x - mu_x, 2) / (2.0 * pow(sigma_x, 2)) + pow(y - mu_y, 2) / (2.0 * pow(sigma_y, 2)))) / (2.0 * M_PI * sigma_x * sigma_y);
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], vector<LandmarkObs> observations, Map map_landmarks) {
 
   weights.clear();
+  vector<LandmarkObs> predicted_obs;
+  vector<LandmarkObs> ground_obs;
+  LandmarkObs prediction;
+  LandmarkObs ground_truth;
+  int closest_idx;
+  double particle_distance;
+  double min_distance;
+  double measurement_offset;
+  double prob;
+  double gaussian_prob;
+
   for (int i = 0; i < particles.size(); i++) {
-    vector<LandmarkObs> ground_obs;
-    vector<LandmarkObs> predicted_obs;
+    predicted_obs.clear();
+    ground_obs.clear();
 
     // Convert observations to ground frame
     for (int index = 0; index < observations.size(); index++) {
@@ -114,7 +129,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
 
     // Compute predicted observations
     for (int index = 0; index < map_landmarks.landmark_list.size(); index++) {
-      double particle_distance = dist(particles[i].x, particles[i].y, map_landmarks.landmark_list[index].x_f, map_landmarks.landmark_list[index].y_f);
+      particle_distance = dist(particles[i].x, particles[i].y, map_landmarks.landmark_list[index].x_f, map_landmarks.landmark_list[index].y_f);
       if (particle_distance <= sensor_range) {
         LandmarkObs obs;
         obs.id = map_landmarks.landmark_list[index].id_i;
@@ -127,26 +142,28 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], v
 
     dataAssociation(predicted_obs, ground_obs);
 
-    double prob = DEFAULT_WEIGHT;
-    double prob_i;
+    prob = DEFAULT_WEIGHT;
 
-    for (int index = 0; index < predicted_obs.size(); index++) {
-      int ind_min = -1;
-      double min_distance = MIN_DISTANCE;
+    for (int pred_idx = 0; pred_idx < predicted_obs.size(); pred_idx++) {
+      closest_idx = -1;
+      min_distance = DEFAULT_DISTANCE;
 
-      for (int j = 0; j < ground_obs.size(); j++) {
-        //Use measurement closest to predicted in case of multiple measurements assigned to the same observation
-        if (predicted_obs[index].id == ground_obs[j].id) {
-          double obs_offset = dist(predicted_obs[index].x, predicted_obs[index].y, ground_obs[j].x, ground_obs[j].y);
-          if (obs_offset < min_distance) {
-            ind_min = j;
-            min_distance = obs_offset;
+      for (int ground_idx = 0; ground_idx < ground_obs.size(); ground_idx++) {
+
+        // Use the closest measurement for prediction in case multiple measurements are assigned to the same observation
+        if (predicted_obs[pred_idx].id == ground_obs[ground_idx].id) {
+          measurement_offset = dist(predicted_obs[pred_idx].x, predicted_obs[pred_idx].y, ground_obs[ground_idx].x, ground_obs[ground_idx].y);
+          if (measurement_offset < min_distance) {
+            closest_idx = ground_idx;
+            min_distance = measurement_offset;
           }
         }
       }
-      if (ind_min != -1) {
-        prob_i = bivariate_normal(predicted_obs[index].x, predicted_obs[index].y, ground_obs[ind_min].x, ground_obs[ind_min].y, std_landmark[0], std_landmark[1]);
-        prob = prob * prob_i;
+      if (closest_idx != -1) {
+        prediction = predicted_obs[pred_idx];
+        ground_truth = ground_obs[closest_idx];
+        gaussian_prob = calculate_gaussian(prediction.x, prediction.y, ground_truth.x, ground_truth.y, std_landmark[0], std_landmark[1]);
+        prob *= gaussian_prob;
       }
     }
 
